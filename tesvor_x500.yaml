@@ -1,0 +1,260 @@
+esphome:
+  name: x500
+  friendly_name: Tesvor X500
+
+esp32:
+  board: nodemcu-32s
+  framework:
+    type: esp-idf
+
+logger:
+  level: DEBUG
+  baud_rate: 115200
+
+ota:
+  - platform: esphome
+    password: [***PRIVATE***]
+
+api:
+  encryption:
+    key: [***PRIVATE***]
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  ap:
+    ssid: "x500-Fallback"
+    password: [***PRIVATE***]
+
+globals:
+  - id: batdataglob
+    type: short
+    restore_value: true
+
+uart:
+  id: uart_bus
+  # NodeMCU-32S UART wiring used here:
+  # RX = GPIO16, TX = GPIO15
+  tx_pin: GPIO15
+  rx_pin: GPIO16
+  baud_rate: 115200
+  debug:
+    direction: BOTH
+    dummy_receiver: true
+    after:
+      delimiter: "\r\n"
+    sequence:
+      - lambda: |-
+          UARTDebug::log_hex(direction, bytes, ' ');
+
+          if (bytes.size() < 31) return;
+
+          // Vacuum state byte is at bytes[6] (based on observed frames)
+          switch (bytes[6]) {
+            case 0x09:
+              id(vacstate).publish_state("error");
+              break;
+            case 0x08:
+              id(vacstate).publish_state("docked");
+              break;
+            case 0x06:
+              id(vacstate).publish_state("docked");   // charging -> report as docked in Home Assistant
+              break;
+            case 0x05:
+              id(vacstate).publish_state("hibernated");
+              break;
+            case 0x04:
+              id(vacstate).publish_state("idle");
+              break;
+            case 0x03:
+              id(vacstate).publish_state("returning");
+              break;
+            case 0x02:
+              id(vacstate).publish_state("cleaning");
+              break;
+          }
+
+          // Battery percentage observed at bytes[29] for these states
+          if ((bytes[6] == 0x06) || (bytes[6] == 0x05) || (bytes[6] == 0x04) || (bytes[6] == 0x02)) {
+            id(batdataglob) = bytes[29];
+          }
+
+          // Error details observed at bytes[28] when bytes[6] == 0x09
+          if (bytes[6] != 0x09) {
+            id(errorstate).publish_state("no error");
+          } else {
+            switch (bytes[28]) {
+              case 0x02: id(errorstate).publish_state("rolling brush blocked"); break;
+              case 0x04: id(errorstate).publish_state("wheels blocked"); break;
+              case 0x07: id(errorstate).publish_state("side brush blocked"); break;
+              case 0x09: id(errorstate).publish_state("front guard jammed"); break;
+              default:   id(errorstate).publish_state("error"); break;
+            }
+          }
+
+script:
+  - id: x500_wake
+    mode: restart
+    then:
+      # Confirmed wake pattern: 2x "Move Back", then "Stop"
+      - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x03, 0x26]
+      - delay: 120ms
+      - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x03, 0x26]
+      - delay: 120ms
+      - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x04, 0x27]
+      - delay: 150ms
+
+  - id: x500_wake_if_needed
+    mode: restart
+    then:
+      - lambda: |-
+          // Only send the wake sequence if the vacuum is currently hibernated
+          if (id(vacstate).state == "hibernated") {
+            ESP_LOGD("x500", "Wake needed (hibernated), sending wake sequence");
+            id(x500_wake).execute();
+          }
+
+  - id: x500_set_fan_normal
+    mode: restart
+    then:
+      - lambda: |-
+          // Keep HA UI in sync: set fan speed to Normal
+          id(fan_speed).publish_state("Normal");
+
+  - id: x500_set_fan_strong
+    mode: restart
+    then:
+      - lambda: |-
+          // Keep HA UI in sync: set fan speed to Strong
+          id(fan_speed).publish_state("Strong");
+
+text_sensor:
+  - platform: template
+    id: vacstate
+    name: Vacuum State
+
+  - platform: template
+    id: errorstate
+    name: Error State
+
+sensor:
+  - platform: template
+    name: Battery
+    id: batdata
+    unit_of_measurement: "%"
+    device_class: battery
+    state_class: measurement
+    accuracy_decimals: 0
+    lambda: return (float) id(batdataglob);
+
+  - platform: uptime
+    name: Uptime
+
+  - platform: wifi_signal
+    name: WiFi Signal
+    update_interval: 60s
+
+select:
+  - platform: template
+    name: Fan Speed
+    id: fan_speed
+    optimistic: true
+    options:
+      - Normal
+      - Strong
+    set_action:
+      - script.execute: x500_wake_if_needed
+      - lambda: |-
+          // Fan speed command frames (as observed/derived)
+          const uint8_t normal_cmd[] = {0xAA, 0x03, 0x02, 0x24, 0x00, 0x26};
+          const uint8_t strong_cmd[] = {0xAA, 0x03, 0x02, 0x24, 0x02, 0x28};
+
+          const uint8_t *p = normal_cmd;
+          size_t n = sizeof(normal_cmd);
+
+          if (x == "Strong") {
+            p = strong_cmd;
+            n = sizeof(strong_cmd);
+          }
+
+          id(uart_bus).write_array(p, n);
+          id(uart_bus).flush();
+
+button:
+  - platform: template
+    name: Smart Cleaning
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - script.execute: x500_set_fan_normal
+        - uart.write: [0xAA, 0x03, 0x02, 0x22, 0x02, 0x26]
+
+  - platform: template
+    name: Spot Cleaning
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - script.execute: x500_set_fan_strong
+        - uart.write: [0xAA, 0x03, 0x02, 0x22, 0x01, 0x25]
+
+  - platform: template
+    name: Edge Cleaning
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - script.execute: x500_set_fan_normal
+        - uart.write: [0xAA, 0x03, 0x02, 0x22, 0x00, 0x24]
+
+  - platform: template
+    name: Stop
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - uart.write: [0xAA, 0x03, 0x02, 0x26, 0x00, 0x28]
+
+  - platform: template
+    name: Go Charge
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - uart.write: [0xAA, 0x03, 0x02, 0x22, 0x03, 0x27]
+
+  - platform: template
+    name: Move Front
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x00, 0x23]
+        - delay: 120ms
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x04, 0x27]
+
+  - platform: template
+    name: Move Back
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x03, 0x26]
+        - delay: 120ms
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x04, 0x27]
+
+  - platform: template
+    name: Move Left
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x01, 0x24]
+        - delay: 120ms
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x04, 0x27]
+
+  - platform: template
+    name: Move Right
+    on_press:
+      then:
+        - script.execute: x500_wake_if_needed
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x02, 0x25]
+        - delay: 120ms
+        - uart.write: [0xAA, 0x03, 0x02, 0x21, 0x04, 0x27]
+
+  - platform: restart
+    name: Reboot
