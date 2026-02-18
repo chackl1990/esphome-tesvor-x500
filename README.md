@@ -40,8 +40,11 @@ Turn your robot so that it faces to front - so that you have the connection port
 The Connection Pins from left to right (in my case - check this with an meter!!!)
 
 **1 → Black → GND → ESP32: GND**
+
 **2 → Yellow → UART TX (Vacuum) → ESP32: UART RX GPIO16**
+
 **3 → Green → UART RX (Vacuum) → ESP32: UART TX GPIO17**
+
 **4 → Red → 3,3V**
 
 > ⚠️ UART is 3.3V TTL. Do not use 5V UART adapters.
