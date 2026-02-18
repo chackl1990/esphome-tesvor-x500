@@ -52,7 +52,7 @@ The Connection Pins from left to right (in my case - check this with an meter!!!
 ### ESP32 UART pins
 This repo’s YAML is intended for a NodeMCU-32S and uses:
 - **RX = GPIO16**
-- **TX = GPIO15**
+- **TX = GPIO17**
 
 If your wiring differs, adjust the `uart:` pins in `tesvor_x500.yaml`.
 
