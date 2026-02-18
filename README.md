@@ -5,24 +5,44 @@ This repository contains an ESPHome configuration (`tesvor_x500.yaml`) to contro
 Reference / inspiration:
 - https://github.com/johkn/tesvor-x500-esphome-vacuum
 
+## Background
+
+The **Tesvor X500 (late 2018 models)** was originally sold with **Weback cloud integration**.  
+At some point, the Weback service was discontinued, which rendered the cloud features unusable.
+
+As a result, many Tesvor X500 units became “cloud-less” and lost their smart functionality.
+
+This project replaces the original Weback-based control with a **local ESPHome integration**, allowing the vacuum to be controlled via **Home Assistant** without any cloud dependency.
+
+### Why this matters
+
+- 100% local control  
+- No external servers required  
+- No account or cloud registration  
+- Long-term independence from discontinued services  
+
+This effectively gives the Tesvor X500 a second life as a fully local smart device.
+
 ## Hardware
 
 - **Robot vacuum:** Tesvor X500
 - **ESP32 board:** `nodemcu-32s`
 - **Power:** The X500 provides **3.3V**, which can be used to power the ESP32 board (3V3 + GND).
 
-### Notes (general)
+### Notes
 - This setup assumes you removed the original Tesvor control board and connected the vacuum’s UART lines to an ESP32.
 - A common approach is to cut the original connector cable and attach jumper terminals/clamps, then wire those to the ESP32.
 
-## Wiring (generic)
+## Wiring
 
-Typical connections:
+Turn your robot so that it faces to front - so that you have the connection port to the esp on the right side.
 
-- **GND (Vacuum) → GND (ESP32)**
-- **3.3V (Vacuum) → 3V3 (ESP32)**
-- **UART TX (Vacuum) → UART RX (ESP32)**
-- **UART RX (Vacuum) → UART TX (ESP32)**
+The Connection Pins from left to right (in my case - check this with an meter!!!)
+
+**1 → Black → GND → ESP32: GND**
+**2 → Yellow → UART TX (Vacuum) → ESP32: UART RX GPIO16**
+**3 → Green → UART RX (Vacuum) → ESP32: UART TX GPIO17**
+**4 → Red → 3,3V**
 
 > ⚠️ UART is 3.3V TTL. Do not use 5V UART adapters.
 
