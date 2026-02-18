@@ -5,23 +5,29 @@ This repository contains an ESPHome configuration (`tesvor_x500.yaml`) to contro
 Reference / inspiration:
 - https://github.com/johkn/tesvor-x500-esphome-vacuum
 
-## Background
+## 🤖 ProjectGizmo
 
-The **Tesvor X500 (late 2018 models)** was originally sold with **Weback cloud integration**.  
-At some point, the Weback service was discontinued, which rendered the cloud features unusable.
+Our robot’s name is **Gizmo** — lovingly chosen by my girlfriend, who grew quite attached to this little guy.
 
-As a result, many Tesvor X500 units became “cloud-less” and lost their smart functionality.
+When the original **Weback cloud service** was discontinued, Gizmo was replaced with a newer Tesvor model **Herbert**.  
+Unfortunately, **Herbert** didn’t even survive his warranty period.  
 
-This project replaces the original Weback-based control with a **local ESPHome integration**, allowing the vacuum to be controlled via **Home Assistant** without any cloud dependency.
+Due to my limited patience for buying yet another robot, testing it, and getting annoyed about what doesn’t work — I decided to take a different path:
 
-### Why this matters
+Instead of buying another robot i got the old Gizmo…  
+and I gave him a **new brain**.
 
-- 100% local control  
-- No external servers required  
-- No account or cloud registration  
-- Long-term independence from discontinued services  
+Thanks to excellent documentation found online, a lot of tinkering, many personal optimizations, and some help from AI, Gizmo is now smarter than ever — fully local, cloud-free, and integrated into Home Assistant.
 
-This effectively gives the Tesvor X500 a second life as a fully local smart device.
+What started as a discontinued cloud device is now:
+
+- 💡 Fully local
+- 🧠 Running on an ESP32
+- 🏠 integrated into Home Assistant
+- ❤️ Officially back in service
+
+ProjectGizmo is proof that sometimes the best upgrade isn’t buying new hardware —  
+it’s giving old hardware a second life.
 
 ## Hardware
 
