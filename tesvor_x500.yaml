@@ -35,8 +35,7 @@ globals:
 uart:
   id: uart_bus
   # NodeMCU-32S UART wiring used here:
-  # RX = GPIO16, TX = GPIO15
-  tx_pin: GPIO15
+  tx_pin: GPIO17
   rx_pin: GPIO16
   baud_rate: 115200
   debug:
