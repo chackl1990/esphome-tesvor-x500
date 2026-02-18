@@ -73,7 +73,7 @@ If your wiring differs, adjust the `uart:` pins in `tesvor_x500.yaml`.
 ## Usage
 
 1. Copy `tesvor_x500.yaml` into your ESPHome project.
-2. Fill in your Wi-Fi secrets (`wifi_ssid`, `wifi_password`) in `secrets.yaml`.
+2. Fill in your secrets (`wifi_ssid`, `wifi_password`, `wifi_fallback`, `api_key`, `ota_password`) in `secrets.yaml`.
 3. Compile and flash as usual via ESPHome.
 4. Add the device to Home Assistant via the ESPHome integration.
 
