@@ -71,6 +71,28 @@ If your wiring differs, adjust the `uart:` pins in `tesvor_x500.yaml`.
 3. Compile and flash as usual via ESPHome.
 4. Add the device to Home Assistant via the ESPHome integration.
 
+## Sensors
+- `sensor.vacuum_state` — **Vacuum State** (text sensor reporting current robot state: cleaning, idle, returning, docked, hibernated, error)  
+- `sensor.error_state` — **Error State** (text sensor reporting detailed error description)  
+- `sensor.battery` — **Battery** (battery level in %)  
+- `sensor.uptime` — **Uptime** (time since boot)  
+- `sensor.wifi_signal` — **WiFi Signal** (Wi-Fi RSSI value)  
+
+## Select / Fan Control
+- `select.fan_speed` — **Fan Speed** (options: Normal / Strong)  
+
+## Buttons (Actions / Commands)
+- `button.smart_cleaning` — **Smart Cleaning**  
+- `button.spot_cleaning` — **Spot Cleaning**  
+- `button.edge_cleaning` — **Edge Cleaning**  
+- `button.stop` — **Stop**  
+- `button.go_charge` — **Go Charge**  
+- `button.move_front` — **Move Front**  
+- `button.move_back` — **Move Back**  
+- `button.move_left` — **Move Left**  
+- `button.move_right` — **Move Right**  
+- `button.reboot` — **Reboot**  
+
 ## Disclaimer
 
 This project is provided as-is. You are working with hardware modifications and low-voltage power inside a consumer device—proceed carefully and at your own risk.
