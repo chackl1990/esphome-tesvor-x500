@@ -1,5 +1,5 @@
 esphome:
-  name: x500
+  name: "x500"
   friendly_name: ProjectGizmo
 
 esp32:
@@ -29,8 +29,14 @@ wifi:
 
 globals:
   - id: batdataglob
-    type: short
+    type: uint8_t
     restore_value: true
+    initial_value: "0"
+
+  - id: vacstate_pending
+    type: std::string
+    restore_value: false
+    initial_value: '""'
 
 uart:
   id: uart_bus
@@ -46,56 +52,59 @@ uart:
       - lambda: |-
           UARTDebug::log_hex(direction, bytes, ' ');
 
-          if (bytes.size() < 31) return;
+          // Nur eingehende Frames auswerten
+          if (direction != UART_DIRECTION_RX) return;
 
-          // --- Fan speed status decode (from AA 1C 06 FF ... frame) ---
-          // Only update from RX frames, and only if the header matches
-          if (direction == UART_DIRECTION_RX &&
-              bytes.size() >= 9 &&
-              bytes[0] == 0xAA && bytes[1] == 0x1C && bytes[2] == 0x06 && bytes[3] == 0xFF) {
+          // Nur das bekannte Status-Frame dekodieren
+          // AA 1C 06 FF ...
+          const bool is_status_frame =
+              bytes.size() >= 31 &&
+              bytes[0] == 0xAA &&
+              bytes[1] == 0x1C &&
+              bytes[2] == 0x06 &&
+              bytes[3] == 0xFF;
 
-            // Observed mapping:
-            // bytes[8] = 0x00 => Normal
-            // bytes[8] = 0x01 => Strong
-            if (bytes[8] == 0x00) {
-              id(fan_speed).publish_state("Normal");
-            } else if (bytes[8] == 0x01) {
-              id(fan_speed).publish_state("Strong");
+          if (!is_status_frame) return;
+
+          // --- Fan speed status decode ---
+          // bytes[8] = 0x00 => Normal
+          // bytes[8] = 0x01 => Strong
+          if (bytes[8] == 0x00) {
+            id(fan_speed).publish_state("Normal");
+          } else if (bytes[8] == 0x01) {
+            id(fan_speed).publish_state("Strong");
+          }
+
+          // --- Vacuum state decode ---
+          std::string new_state;
+          switch (bytes[6]) {
+            case 0x09: new_state = "error";       break;
+            case 0x08: new_state = "docked";      break;
+            case 0x06: new_state = "docked";      break; // charging -> docked
+            case 0x05: new_state = "hibernated";  break;
+            case 0x04: new_state = "idle";        break;
+            case 0x03: new_state = "returning";   break;
+            case 0x02: new_state = "cleaning";    break;
+            default:   new_state = "";            break;
+          }
+
+          if (!new_state.empty()) {
+            if (id(vacstate_pending) != new_state) {
+              id(vacstate_pending) = new_state;
+              id(vacstate_debounce_commit).execute();
             }
           }
-          // --- end fan speed status decode ---
 
-          // Vacuum state byte is at bytes[6] (based on observed frames)
-          switch (bytes[6]) {
-            case 0x09:
-              id(vacstate).publish_state("error");
-              break;
-            case 0x08:
-              id(vacstate).publish_state("docked");
-              break;
-            case 0x06:
-              id(vacstate).publish_state("docked");   // charging -> report as docked in Home Assistant
-              break;
-            case 0x05:
-              id(vacstate).publish_state("hibernated");
-              break;
-            case 0x04:
-              id(vacstate).publish_state("idle");
-              break;
-            case 0x03:
-              id(vacstate).publish_state("returning");
-              break;
-            case 0x02:
-              id(vacstate).publish_state("cleaning");
-              break;
-          }
-
-          // Battery percentage observed at bytes[29] for these states
-          if ((bytes[6] == 0x06) || (bytes[6] == 0x05) || (bytes[6] == 0x04) || (bytes[6] == 0x02)) {
+          // --- Battery decode ---
+          // bytes[29] enthält im Status-Frame den Akkustand
+          // Nur plausible Werte übernehmen
+          if (bytes[29] <= 100) {
             id(batdataglob) = bytes[29];
+            id(batdata).publish_state(id(batdataglob));
           }
 
-          // Error details observed at bytes[28] when bytes[6] == 0x09
+          // --- Error decode ---
+          // bytes[28] enthält den Fehlercode, wenn bytes[6] == 0x09
           if (bytes[6] != 0x09) {
             id(errorstate).publish_state("no error");
           } else {
@@ -130,6 +139,17 @@ script:
             id(x500_wake).execute();
           }
 
+  - id: vacstate_debounce_commit
+    mode: restart
+    then:
+      - delay: 3s
+      - lambda: |-
+          // Nur committen, wenn sich der Pending-State nicht wieder geändert hat
+          // (mode: restart sorgt dafür, dass die 3s jedes Mal neu starten)
+          if (id(vacstate).state != id(vacstate_pending)) {
+            id(vacstate).publish_state(id(vacstate_pending));
+          }
+
 text_sensor:
   - platform: template
     id: vacstate
@@ -147,7 +167,7 @@ sensor:
     device_class: battery
     state_class: measurement
     accuracy_decimals: 0
-    lambda: return (float) id(batdataglob);
+    update_interval: never
 
   - platform: uptime
     name: Uptime
