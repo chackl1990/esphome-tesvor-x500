@@ -186,21 +186,16 @@ select:
       - Strong
     set_action:
       - script.execute: x500_wake_if_needed
-      - lambda: |-
-          // Fan speed command frames (as observed/derived)
-          const uint8_t normal_cmd[] = {0xAA, 0x03, 0x02, 0x24, 0x00, 0x26};
-          const uint8_t strong_cmd[] = {0xAA, 0x03, 0x02, 0x24, 0x02, 0x28};
-
-          const uint8_t *p = normal_cmd;
-          size_t n = sizeof(normal_cmd);
-
-          if (x == "Strong") {
-            p = strong_cmd;
-            n = sizeof(strong_cmd);
-          }
-
-          id(uart_bus).write_array(p, n);
-          id(uart_bus).flush();
+      - if:
+          condition:
+            lambda: 'return x == "Strong";'
+          then:
+            # new Versions
+            - uart.write: [0xAA, 0x03, 0x02, 0x24, 0x01, 0x27]
+            # old Versions
+            - uart.write: [0xAA, 0x03, 0x02, 0x24, 0x02, 0x28]
+          else:
+            - uart.write: [0xAA, 0x03, 0x02, 0x24, 0x00, 0x26]
 
 button:
   - platform: template
